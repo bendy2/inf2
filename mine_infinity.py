@@ -4,7 +4,6 @@ import math
 import multiprocessing
 import os
 import queue
-import sys
 import threading
 import time
 
@@ -25,6 +24,7 @@ from config import (
 )
 from utils import create_signature_ab
 
+logger = logging.getLogger("miner")
 
 """
     Global variables for multithreading, etc.
@@ -246,7 +246,7 @@ def mine_wagmi_magic_xor(strPublicKey, strMagicXorDifficulty):
     )
 
     if "FAIL" in result:
-        logging.warning("[PROFANITY2] generation failed")
+        logger.warning("[PROFANITY2] generation failed")
         return None
     else:
         return "0x" + result
@@ -421,14 +421,14 @@ def broadcast_signed_txs(raw_signed_txs):
     return response
 
 
-def mine_and_submit(el_problemo, chain_data_latest, queue):
+def mine_and_submit(el_problemo, chain_data_latest):
     """
     Called in a separate process.
     1) Perform GPU-based mine_wagmi_magic_xor(...)
     2) Submit transaction.
     """
     try:
-        logging.debug(
+        logger.debug(
             f"[MINER][{time.time():.3f}] STARTED for pkeyA: {el_problemo['privateKeyA']}"
         )
 
@@ -437,7 +437,7 @@ def mine_and_submit(el_problemo, chain_data_latest, queue):
             strMagicXorDifficulty=el_problemo["difficulty"][2:],
         )
 
-        logging.debug(
+        logger.debug(
             f"[MINER][{time.time():.3f}] Obtained privateKeyB: {private_key_b}"
         )
 
@@ -451,39 +451,14 @@ def mine_and_submit(el_problemo, chain_data_latest, queue):
             funny_data=SIGN_DATA,
             fee_history=chain_data_latest["eth_feeHistory"],
         )
-
         signed_tx = create_raw_signed_tx(tx, MASTER_PKEY)
+        logger.debug(f"[MINER][{time.time():.3f}] build and signed tx - {signed_tx}")
 
-        logging.debug(
-            f"[MINER][{time.time():.3f}] build and signed tx with tx_hash: {signed_tx['tx_hash']}"
-        )
-
-        response = broadcast_signed_txs([signed_tx])
-
-        miner_return_status = {}
-
-        if response.status_code == 200:
-            miner_return_status["request_status"] = "OK"
-        else:
-            miner_return_status["request_status"] = "FAIL"
-
-        result = json.loads(response.text)[0]
-        if "error" in result:
-            miner_return_status["tx_status"] = "FAIL"
-            miner_return_status["payload"] = result["error"]
-
-        if "result" in result:
-            miner_return_status["tx_status"] = "OK"
-            miner_return_status["payload"] = result["result"]
-
-        # print(miner_return_status)
-        # now we need to put tx into the queue
-        queue.put(miner_return_status)
-
-        logging.debug(f"[MINER][{time.time():.3f}] BROADCASTED {signed_tx['tx_hash']}")
+        broadcast_signed_txs([signed_tx])
+        logger.info(f"New submission - {signed_tx['tx_hash']}")
 
     except Exception as e:
-        logging.warning("[MINER] Exception in miner process:" + str(e))
+        logger.warning("[MINER] Exception in miner process:" + str(e))
 
 
 """
@@ -509,7 +484,7 @@ def listen_for_problems(ws_url, contract_address, event_topic):
     ws.send(json.dumps(subscription_request))
 
     sub_reply = ws.recv()
-    logging.debug(f"[WS-LISTENER][{time.time():.3f}] Subscribed. Reply: {sub_reply}")
+    logger.debug(f"[WS-LISTENER][{time.time():.3f}] Subscribed. Reply: {sub_reply}")
 
     while True:
         raw_message = ws.recv()
@@ -533,10 +508,10 @@ def listen_for_problems(ws_url, contract_address, event_topic):
         difficulty_hex = "0x" + format(difficulty_uint, "040x")
         privateKeyA_hex = "0x" + format(pkey_A, "x")
 
-        logging.debug(f"[WS-LISTENER][{time.time():.3f}] NewProblem Detected")
-        logging.debug(f"[WS-LISTENER] difficulty: {difficulty_hex}")
-        logging.debug(f"[WS-LISTENER] privateKeyA_hex: {privateKeyA_hex}")
-        logging.debug(f"[WS-LISTENER] problemNonce: {problem_nonce}")
+        logger.debug(f"[WS-LISTENER][{time.time():.3f}] NewProblem Detected")
+        logger.debug(f"[WS-LISTENER] difficulty: {difficulty_hex}")
+        logger.debug(f"[WS-LISTENER] privateKeyA_hex: {privateKeyA_hex}")
+        logger.debug(f"[WS-LISTENER] problemNonce: {problem_nonce}")
 
         new_problem = {
             "difficulty": difficulty_hex,
@@ -569,17 +544,17 @@ def poll_state_periodically(poll_interval=0.5):
     while True:
         try:
             session_update_counter += 1
-            logging.debug(f"[POLLING][{time.time():.3f}] Preparing for polling step")
+            logger.debug(f"[POLLING][{time.time():.3f}] Preparing for polling step")
 
             polled_data = get_essential_state_multicall(
                 master_address=MASTER_ADDRESS, pow_address=POW_CONTRACT
             )
 
-            logging.debug(f"[POLLING[{time.time():.3f}] Obtained State:")
-            logging.debug(f"[POLLING] master_nonce: {polled_data['master_nonce']}")
-            logging.debug(f"[POLLING] privateKeyA: {polled_data['privateKeyA']}")
-            logging.debug(f"[POLLING] difficulty: {polled_data['difficulty']}")
-            logging.debug(f"[POLLING] problemNonce: {polled_data['problemNonce']}")
+            logger.debug(f"[POLLING[{time.time():.3f}] Obtained State:")
+            logger.debug(f"[POLLING] master_nonce: {polled_data['master_nonce']}")
+            logger.debug(f"[POLLING] privateKeyA: {polled_data['privateKeyA']}")
+            logger.debug(f"[POLLING] difficulty: {polled_data['difficulty']}")
+            logger.debug(f"[POLLING] problemNonce: {polled_data['problemNonce']}")
 
             if polled_data and polled_data["master_nonce"] != None:
                 POLL_RESULTS_QUEUE.put(polled_data)
@@ -587,10 +562,10 @@ def poll_state_periodically(poll_interval=0.5):
             # refresh session since it could hang sometimes
             if session_update_counter == SESSION_UPATE_STEPS:
                 SESSION = requests.Session()
-                logging.debug(f"[POLLING[{time.time():.3f}] SESSION refreshed!")
+                logger.debug(f"[POLLING[{time.time():.3f}] SESSION refreshed!")
 
         except Exception as e:
-            logging.warning("[POLLING] Exception during polling:" + str(e))
+            logger.warning("[POLLING] Exception during polling:" + str(e))
 
         sleep_to_next_multiple(poll_interval)
 
@@ -652,104 +627,6 @@ def _safe_cast(d, field):
         return d[field]
 
 
-def versobse_stats(last_poll_data, last_problem, last_miner_state):
-    global MINING_STATS
-
-    if (
-        (MINING_STATS["last_inf_balance"] == None)
-        and last_poll_data
-        and ("balance" in last_poll_data)
-    ):
-        MINING_STATS["last_inf_balance"] = last_poll_data["balance"]
-
-    if (
-        (MINING_STATS["last_sonic_balance"] == None)
-        and last_poll_data
-        and ("sonic_balance" in last_poll_data)
-    ):
-        MINING_STATS["last_sonic_balance"] = last_poll_data["sonic_balance"]
-
-    if time.time() - 60 > MINING_STATS["last_inf_balance_time"]:
-        if "balance" in last_poll_data:
-            delta = last_poll_data["balance"] - MINING_STATS["last_inf_balance"]
-            MINING_STATS["last_inf_balance"] = last_poll_data["balance"]
-            MINING_STATS["last_inf_speed"] = f"{delta:.1f}"
-            MINING_STATS["last_inf_balance_time"] = time.time()
-        else:
-            MINING_STATS["last_inf_speed"] = "NaN"
-
-        if "sonic_balance" in last_poll_data:
-            delta_sonic = (
-                last_poll_data["sonic_balance"] - MINING_STATS["last_sonic_balance"]
-            )
-            MINING_STATS["last_sonic_balance"] = last_poll_data["sonic_balance"]
-            MINING_STATS["last_sonic_speed"] = f"{delta_sonic:.2f}"
-        else:
-            MINING_STATS["last_sonic_speed"] = "NaN"
-
-    if (
-        last_miner_state
-        and last_miner_state["tx_status"] == "OK"
-        and last_miner_state["payload"] != MINING_STATS["last_tx_hash"]
-    ):
-        if "0x" in last_miner_state["payload"]:
-            MINING_STATS["last_tx_hash"] = last_miner_state["payload"]
-            MINING_STATS["tx_ok"] += 1
-            MINING_STATS["curr_sub_per_epoch"] += 1
-
-    if last_poll_data and last_poll_data["problemNonce"] != MINING_STATS["last_epoch"]:
-        if MINING_STATS["last_epoch"] != None:
-            MINING_STATS["sub_per_epoch_arr"].append(MINING_STATS["curr_sub_per_epoch"])
-            MINING_STATS["curr_sub_per_epoch"] = 0
-
-        MINING_STATS["last_epoch"] = last_poll_data["problemNonce"]
-        MINING_STATS["epochs_elapsed"] += 1
-
-    if len(MINING_STATS["sub_per_epoch_arr"]) != 0:
-        avg_share_per_epoc = f'{sum(MINING_STATS["sub_per_epoch_arr"]) / len(MINING_STATS["sub_per_epoch_arr"]):.2f} sub per epoch'
-    else:
-        avg_share_per_epoc = f'{MINING_STATS["curr_sub_per_epoch"]} sub per epoch'
-
-    sys.stdout.write("\x1b[20A")
-    lines = []
-
-    lines.append(f"           [STATS at {time.time():.3f}]")
-    lines.append(f"[PKEYA]             {_safe_cast(last_problem, 'privateKeyA')}")
-    lines.append(f"[DIFFICULTY]        {_safe_cast(last_problem, 'difficulty')}")
-    lines.append(
-        f"[DIFF-ITER]         {_diff_to_iter(_safe_cast(last_problem, 'difficulty'))} steps on average to find solution"
-    )
-    lines.append(f"[PROBLEM EPOCH]     {_safe_cast(last_problem, 'problemNonce')}")
-    lines.append(f"")
-    lines.append(f"            [MINER STATS]")
-    lines.append(f"[TX SENT]            {MINING_STATS['tx_ok']}")
-    lines.append(f"[EPOCHS ELAPSED]     {MINING_STATS['epochs_elapsed']}")
-    lines.append(f"[CURRENT EPOCH SUB]  {MINING_STATS['curr_sub_per_epoch']}")
-    lines.append(f"[AVG SUB PER EPOCH]  {avg_share_per_epoc}")
-    lines.append(
-        f"[INF BALANCE]        {_safe_cast(last_poll_data, 'balance'):.0f} tokens"
-    )
-    lines.append(
-        f"[MINING SPEED]       {MINING_STATS['last_inf_speed']} tokens per min"
-    )
-    lines.append(
-        f"[S BALANCE]          {_safe_cast(last_poll_data, 'sonic_balance'):.2f} S"
-    )
-    lines.append(
-        f"[S SPEND SPEED]      {MINING_STATS['last_sonic_speed']} Sonic per min"
-    )
-    lines.append(f"")
-    lines.append(f"[MINER ADDRESS]       {MASTER_ADDRESS}")
-    lines.append(f"[REWARDS ADDRESS]     {REWARDS_RECIPIENT_ADDRESS}")
-    lines.append(f"[LAST TX HASH]        {MINING_STATS['last_tx_hash']}")
-    lines.append(f"Press Cntrl + C to stop mining")
-
-    for line in lines:
-        print(line)
-
-    sys.stdout.flush()
-
-
 def clean_opencl_cache():
     os.system("rm -f cache-opencl.255.*")
 
@@ -769,28 +646,24 @@ def clean_opencl_cache():
         Consired restarting logic if miner is dead
 """
 
+MINING_PROCESS = None
+
 
 def main_loop():
+    global MINING_PROCESS
     manager = multiprocessing.Manager()
-    miner_queue = multiprocessing.Queue()
     chain_data_latest = manager.dict()
     chain_data_latest["master_nonce"] = 0
     chain_data_latest["eth_feeHistory"] = {}
 
-    current_miner_process = None
     last_poll_data = None
     last_problem = None
-    last_miner_state = None
     pkey_in_work = None
     actually_latest_pkey = None
+    last_log = 0
 
     refresh_cli_counter = 0
-
-    # for cli refreshing stats
-    for _ in range(20):
-        print()
-
-    logging.debug(f"[MAIN-LOOP][{time.time():.3f}] STARTING")
+    logger.debug(f"[MAIN-LOOP][{time.time():.3f}] STARTING")
 
     while True:
         refresh_cli_counter += 1
@@ -811,7 +684,7 @@ def main_loop():
 
         while not PROBLEMS_QUEUE.empty():
             last_problem = PROBLEMS_QUEUE.get()
-            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] got websockets update")
+            logger.debug(f"[MAIN-LOOP][{time.time():.3f}] got websockets update")
 
         """
             Safety check for situations where:
@@ -837,49 +710,43 @@ def main_loop():
         """
             Check on our mate - miner
         """
-        if current_miner_process and not current_miner_process.is_alive():
+        if MINING_PROCESS and not MINING_PROCESS.is_alive():
             pkey_in_work = None
-            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] MINER BROSKIII HAS DIEEDDD")
+            logger.debug(f"[MAIN-LOOP][{time.time():.3f}] MINER BROSKIII HAS DIEEDDD")
 
         if (last_poll_data and last_problem) and (actually_latest_pkey != pkey_in_work):
-            logging.debug(
+            logger.debug(
                 f"[MAIN-LOOP][{time.time():.3f}] new problem detected - relaunching MINER"
             )
-            logging.debug(f"[MAIN-LOOP] diff: {last_problem['difficulty']}")
-            logging.debug(f"[MAIN-LOOP] pkey: {actually_latest_pkey}")
-            logging.debug(f"[MAIN-LOOP] problemNonce: {last_problem['problemNonce']}")
+            logger.debug(f"[MAIN-LOOP] diff: {last_problem['difficulty']}")
+            logger.debug(f"[MAIN-LOOP] pkey: {actually_latest_pkey}")
+            logger.debug(f"[MAIN-LOOP] problemNonce: {last_problem['problemNonce']}")
 
             el_problemo = {
                 "privateKeyA": actually_latest_pkey,
                 "difficulty": last_problem["difficulty"],
             }
 
-            if current_miner_process and current_miner_process.is_alive():
-                current_miner_process.terminate()
-                current_miner_process.join()
-                logging.debug(f"[MAIN-LOOP][{time.time():.3f}] KILLED OLD MINER")
+            if MINING_PROCESS and MINING_PROCESS.is_alive():
+                MINING_PROCESS.terminate()
+                MINING_PROCESS.join()
+                logger.debug(f"[MAIN-LOOP][{time.time():.3f}] KILLED OLD MINER")
 
-            current_miner_process = multiprocessing.Process(
+            MINING_PROCESS = multiprocessing.Process(
                 target=mine_and_submit,
-                args=(el_problemo, chain_data_latest, miner_queue),
+                args=(el_problemo, chain_data_latest),
             )
-            current_miner_process.start()
-            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] SPAWNED NEW MINER")
+            MINING_PROCESS.start()
+            logger.debug(f"[MAIN-LOOP][{time.time():.3f}] SPAWNED NEW MINER")
 
             pkey_in_work = actually_latest_pkey
 
-        # alrightm it is about time to get mining status and display it to cli
-        while not miner_queue.empty():
-            last_miner_state = miner_queue.get_nowait()
-
-        # flush state once a second
-        if refresh_cli_counter == REFRESH_CLI_RATE:
-            refresh_cli_counter = 0
-            if last_poll_data and last_problem and last_miner_state:
-                try:
-                    versobse_stats(last_poll_data, last_problem, last_miner_state)
-                except:
-                    pass
+        if (time.time() - last_log) > 10:
+            logger.info(
+                f"INFINITY balance: {_safe_cast(last_poll_data, 'balance'):,.0f} $8, "
+                f"S balance: {_safe_cast(last_poll_data, 'sonic_balance'):.2f} $S"
+            )
+            last_log = time.time()
 
         sleep_to_next_multiple(DEFAULT_MAIN_LOOP_STEP_SECONDS)
 
@@ -906,4 +773,9 @@ if __name__ == "__main__":
     )
     poll_thread.start()
 
-    main_loop()
+    try:
+        main_loop()
+    except KeyboardInterrupt:
+        if MINING_PROCESS.is_alive():
+            MINING_PROCESS.terminate()
+        MINING_PROCESS.join()

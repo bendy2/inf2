@@ -7,7 +7,11 @@ from eth_utils import is_same_address
 from web3 import Web3
 
 
-logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
+logging.basicConfig(
+    level=os.getenv("LOGLEVEL", "INFO"),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 load_dotenv()
 
