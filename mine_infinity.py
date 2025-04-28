@@ -493,20 +493,18 @@ def mine_and_submit(el_problemo, chain_data_latest, queue):
     2) Submit transaction.
     """
     try:
-        if MINER_VERBOSE_FLAG:
-            logging.info(
-                f"[MINER][{time.time():.3f}] STARTED for pkeyA: {el_problemo['privateKeyA']}"
-            )
+        logging.debug(
+            f"[MINER][{time.time():.3f}] STARTED for pkeyA: {el_problemo['privateKeyA']}"
+        )
 
         private_key_b = mine_wagmi_magic_xor(
             strPublicKey=get_secp256k1_pub(el_problemo["privateKeyA"][2:]),
             strMagicXorDifficulty=el_problemo["difficulty"][2:],
         )
 
-        if MINER_VERBOSE_FLAG:
-            logging.info(
-                f"[MINER][{time.time():.3f}] Obtained privateKeyB: {private_key_b}"
-            )
+        logging.debug(
+            f"[MINER][{time.time():.3f}] Obtained privateKeyB: {private_key_b}"
+        )
 
         # submit the result
         tx = build_submit_tx_fast(
@@ -521,10 +519,9 @@ def mine_and_submit(el_problemo, chain_data_latest, queue):
 
         signed_tx = create_raw_signed_tx(tx, MASTER_PKEY)
 
-        if MINER_VERBOSE_FLAG:
-            logging.info(
-                f"[MINER][{time.time():.3f}] build and signed tx with tx_hash: {signed_tx['tx_hash']}"
-            )
+        logging.debug(
+            f"[MINER][{time.time():.3f}] build and signed tx with tx_hash: {signed_tx['tx_hash']}"
+        )
 
         response = broadcast_signed_txs([signed_tx])
 
@@ -548,10 +545,7 @@ def mine_and_submit(el_problemo, chain_data_latest, queue):
         # now we need to put tx into the queue
         queue.put(miner_return_status)
 
-        if MINER_VERBOSE_FLAG:
-            logging.info(
-                f"[MINER][{time.time():.3f}] BROADCASTED {signed_tx['tx_hash']}"
-            )
+        logging.debug(f"[MINER][{time.time():.3f}] BROADCASTED {signed_tx['tx_hash']}")
 
     except Exception as e:
         logging.warning("[MINER] Exception in miner process:" + str(e))
@@ -605,11 +599,10 @@ def listen_for_problems(ws_url, contract_address, event_topic):
         difficulty_hex = "0x" + format(difficulty_uint, "040x")
         privateKeyA_hex = "0x" + format(pkey_A, "x")
 
-        if MINER_VERBOSE_FLAG:
-            logging.info(f"[WS-LISTENER][{time.time():.3f}] NewProblem Detected")
-            logging.info(f"[WS-LISTENER] difficulty: {difficulty_hex}")
-            logging.info(f"[WS-LISTENER] privateKeyA_hex: {privateKeyA_hex}")
-            logging.info(f"[WS-LISTENER] problemNonce: {problem_nonce}")
+        logging.debug(f"[WS-LISTENER][{time.time():.3f}] NewProblem Detected")
+        logging.debug(f"[WS-LISTENER] difficulty: {difficulty_hex}")
+        logging.debug(f"[WS-LISTENER] privateKeyA_hex: {privateKeyA_hex}")
+        logging.debug(f"[WS-LISTENER] problemNonce: {problem_nonce}")
 
         new_problem = {
             "difficulty": difficulty_hex,
@@ -642,19 +635,17 @@ def poll_state_periodically(poll_interval=0.5):
     while True:
         try:
             session_update_counter += 1
-            if MINER_VERBOSE_FLAG:
-                logging.info(f"[POLLING][{time.time():.3f}] Preparing for polling step")
+            logging.debug(f"[POLLING][{time.time():.3f}] Preparing for polling step")
 
             polled_data = get_essential_state_multicall(
                 master_address=MASTER_ADDRESS, pow_address=POW_CONTRACT
             )
 
-            if MINER_VERBOSE_FLAG:
-                logging.info(f"[POLLING[{time.time():.3f}] Obtained State:")
-                logging.info(f"[POLLING] master_nonce: {polled_data['master_nonce']}")
-                logging.info(f"[POLLING] privateKeyA: {polled_data['privateKeyA']}")
-                logging.info(f"[POLLING] difficulty: {polled_data['difficulty']}")
-                logging.info(f"[POLLING] problemNonce: {polled_data['problemNonce']}")
+            logging.debug(f"[POLLING[{time.time():.3f}] Obtained State:")
+            logging.debug(f"[POLLING] master_nonce: {polled_data['master_nonce']}")
+            logging.debug(f"[POLLING] privateKeyA: {polled_data['privateKeyA']}")
+            logging.debug(f"[POLLING] difficulty: {polled_data['difficulty']}")
+            logging.debug(f"[POLLING] problemNonce: {polled_data['problemNonce']}")
 
             if polled_data and polled_data["master_nonce"] != None:
                 POLL_RESULTS_QUEUE.put(polled_data)
@@ -662,8 +653,7 @@ def poll_state_periodically(poll_interval=0.5):
             # refresh session since it could hang sometimes
             if session_update_counter == SESSION_UPATE_STEPS:
                 SESSION = requests.Session()
-                if MINER_VERBOSE_FLAG:
-                    logging.info(f"[POLLING[{time.time():.3f}] SESSION refreshed!")
+                logging.debug(f"[POLLING[{time.time():.3f}] SESSION refreshed!")
 
         except Exception as e:
             logging.warning("[POLLING] Exception during polling:" + str(e))
@@ -866,8 +856,7 @@ def main_loop():
     for _ in range(20):
         print()
 
-    if MINER_VERBOSE_FLAG:
-        logging.info(f"[MAIN-LOOP][{time.time():.3f}] STARTING")
+    logging.debug(f"[MAIN-LOOP][{time.time():.3f}] STARTING")
 
     while True:
         refresh_cli_counter += 1
@@ -888,8 +877,7 @@ def main_loop():
 
         while not PROBLEMS_QUEUE.empty():
             last_problem = PROBLEMS_QUEUE.get()
-            if MINER_VERBOSE_FLAG:
-                logging.info(f"[MAIN-LOOP][{time.time():.3f}] got websockets update")
+            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] got websockets update")
 
         """
             Safety check for situations where:
@@ -917,21 +905,15 @@ def main_loop():
         """
         if current_miner_process and not current_miner_process.is_alive():
             pkey_in_work = None
-            if MINER_VERBOSE_FLAG:
-                logging.info(
-                    f"[MAIN-LOOP][{time.time():.3f}] MINER BROSKIII HAS DIEEDDD"
-                )
+            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] MINER BROSKIII HAS DIEEDDD")
 
         if (last_poll_data and last_problem) and (actually_latest_pkey != pkey_in_work):
-            if MINER_VERBOSE_FLAG:
-                logging.info(
-                    f"[MAIN-LOOP][{time.time():.3f}] new problem detected - relaunching MINER"
-                )
-                logging.info(f"[MAIN-LOOP] diff: {last_problem['difficulty']}")
-                logging.info(f"[MAIN-LOOP] pkey: {actually_latest_pkey}")
-                logging.info(
-                    f"[MAIN-LOOP] problemNonce: {last_problem['problemNonce']}"
-                )
+            logging.debug(
+                f"[MAIN-LOOP][{time.time():.3f}] new problem detected - relaunching MINER"
+            )
+            logging.debug(f"[MAIN-LOOP] diff: {last_problem['difficulty']}")
+            logging.debug(f"[MAIN-LOOP] pkey: {actually_latest_pkey}")
+            logging.debug(f"[MAIN-LOOP] problemNonce: {last_problem['problemNonce']}")
 
             el_problemo = {
                 "privateKeyA": actually_latest_pkey,
@@ -941,17 +923,14 @@ def main_loop():
             if current_miner_process and current_miner_process.is_alive():
                 current_miner_process.terminate()
                 current_miner_process.join()
-                if MINER_VERBOSE_FLAG:
-                    logging.info(f"[MAIN-LOOP][{time.time():.3f}] KILLED OLD MINER")
+                logging.debug(f"[MAIN-LOOP][{time.time():.3f}] KILLED OLD MINER")
 
             current_miner_process = multiprocessing.Process(
                 target=mine_and_submit,
                 args=(el_problemo, chain_data_latest, miner_queue),
             )
             current_miner_process.start()
-
-            if MINER_VERBOSE_FLAG:
-                logging.info(f"[MAIN-LOOP][{time.time():.3f}] SPAWNED NEW MINER")
+            logging.debug(f"[MAIN-LOOP][{time.time():.3f}] SPAWNED NEW MINER")
 
             pkey_in_work = actually_latest_pkey
 

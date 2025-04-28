@@ -55,9 +55,6 @@ INVERSE_MULTIPLE = 1024
     Should program output anything in std::out ?
 """
 PROFANITY2_VERBOSE_FLAG = False  # do you want profanity2 working logs?
-MINER_VERBOSE_FLAG = (
-    True  # don't toggle these both to True -- they will mix, one at a time please
-)
 
 
 """

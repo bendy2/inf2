@@ -31,12 +31,14 @@ except Exception:
 
 if MASTER_ADDRESS is None:
     MASTER_ADDRESS = master.address
+if REWARDS_RECIPIENT_ADDRESS is None:
+    REWARDS_RECIPIENT_ADDRESS = master.address
 
 if not is_same_address(MASTER_ADDRESS, master.address):
     print(f"Error with MASTER_ADDRESS: delete this value, its deprecated")
     exit(0)
 
-if not is_same_address(MASTER_ADDRESS, REWARDS_RECIPIENT_ADDRESS):
+if not is_same_address(master.address, REWARDS_RECIPIENT_ADDRESS):
     print(
         f"[WARNING]: make sure, that you have access to {REWARDS_RECIPIENT_ADDRESS} address"
     )
