@@ -170,7 +170,7 @@ To build:
     # pip3 install pybind11 safe-pysha3 ecdsa web3 coincurve websocket-client websockets dotenv 
 
     git clone https://github.com/infinity88888888/gpu-miner.git
-    cd pow
+    cd gpu-miner
     chmod +x build_mac.sh
     ./build_mac.sh
 
