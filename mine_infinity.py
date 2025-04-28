@@ -9,11 +9,8 @@ import threading
 import time
 
 import requests
-import coincurve
 from ecdsa import SECP256k1, SigningKey
 from eth_abi import decode
-from eth_account import Account
-from eth_account.messages import defunct_hash_message, encode_defunct
 from web3 import Web3
 from websocket import create_connection
 
@@ -26,6 +23,7 @@ from config import (
     INFINITY_RPC,
     INFINITY_WS,
 )
+from utils import create_signature_ab
 
 
 """
@@ -100,69 +98,6 @@ def get_pkeys_sum(pkey_a_hex, pkey_b_hex):
         % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
     )
     return _pkey_paddding_hex(pkey_full)
-
-
-"""
-    [UTILS][TX-BUILDER]
-
-    sign in PoW.sol specific format
-
-    private_key_ab_hex -- accepts both WITH and WITHOUT "0x"
-
-    Works around 5ms 
-    Much simpler to use, because it is basically a part of web3py
-    feel free to fallback to this option if optimized one doesn't work!
-"""
-# def create_signature_ab(
-#         private_key_ab_hex,
-#         recipient,
-#         data
-#     ):
-#     recipient = WEB3_IDLE_PROVIDER.to_checksum_address(recipient)
-#     message_hash = WEB3_IDLE_PROVIDER.solidity_keccak(
-#         ['address', 'bytes'],
-#         [recipient, data]
-#     )
-#     eip191_message = encode_defunct(primitive=message_hash)
-#     signed_message = Account.sign_message(
-#         eip191_message,
-#         private_key=private_key_ab_hex
-#     )
-
-#     r = hex(signed_message.r)
-#     s = hex(signed_message.s)
-#     v = hex(signed_message.v)
-#     return r, s, v
-
-
-"""
-    [UTILS][TX-BUILDER]
-
-    sign in PoW.sol specific format
-
-    private_key_ab_hex -- no "0x"
-
-    Optimized verison, works around 1 ms
-
-    recipient HAS to be checksumed address!
-
-    if you have any promlem with coincurve library (it's not always easy to install -- uncomment and use the function above)
-"""
-
-
-def create_signature_ab(private_key_ab_hex, recipient, data):
-    private_key_bytes = bytes.fromhex(private_key_ab_hex)
-    message_hash = WEB3_IDLE_PROVIDER.solidity_keccak(
-        ["address", "bytes"], [recipient, data]
-    )
-    eip191_message_hash = defunct_hash_message(primitive=message_hash)
-    private_key = coincurve.PrivateKey(private_key_bytes)
-    signature = private_key.sign_recoverable(eip191_message_hash, hasher=None)
-    r = hex(int.from_bytes(signature[:32], "big"))
-    s = hex(int.from_bytes(signature[32:64], "big"))
-    v = hex(signature[64] + 27)
-
-    return r, s, v
 
 
 def _parse_promlem_req(data):
@@ -574,8 +509,7 @@ def listen_for_problems(ws_url, contract_address, event_topic):
     ws.send(json.dumps(subscription_request))
 
     sub_reply = ws.recv()
-    if True:
-        logging.info(f"[WS-LISTENER][{time.time():.3f}] Subscribed. Reply: {sub_reply}")
+    logging.debug(f"[WS-LISTENER][{time.time():.3f}] Subscribed. Reply: {sub_reply}")
 
     while True:
         raw_message = ws.recv()
