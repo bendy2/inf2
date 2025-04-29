@@ -742,11 +742,14 @@ def main_loop():
             pkey_in_work = actually_latest_pkey
 
         if (time.time() - last_log) > 10:
-            logger.info(
-                f"INFINITY balance: {_safe_cast(last_poll_data, 'balance'):,.0f} $8, "
-                f"S balance: {_safe_cast(last_poll_data, 'sonic_balance'):.2f} $S"
-            )
-            last_log = time.time()
+            try:
+                logger.info(
+                    f"INFINITY balance: {_safe_cast(last_poll_data, 'balance'):,.0f} $8, "
+                    f"S balance: {_safe_cast(last_poll_data, 'sonic_balance'):.2f} $S"
+                )
+                last_log = time.time()
+            except Exception:
+                pass
 
         sleep_to_next_multiple(DEFAULT_MAIN_LOOP_STEP_SECONDS)
 
