@@ -416,7 +416,16 @@ def broadcast_signed_txs(raw_signed_txs):
     for us_tx in raw_signed_txs:
         multicall_body.append(signed_tx_to_call(us_tx))
 
-    response = SESSION.post(url=INFINITY_RPC, json=multicall_body)
+    try:
+        response = SESSION.post(url=INFINITY_RPC, json=multicall_body)
+    except Exception as e:
+        logging.warning("[MINER][SUBMIT]FAILED: " + str(e))
+        try:
+            response = SESSION.post(url=INFINITY_RPC, json=multicall_body)
+        except Exception as e:
+            logging.warning("[MINER][SUBMIT]FAILED AGAIN! " + str(e))
+            response = SESSION.post(url=INFINITY_RPC, json=multicall_body)
+
 
     return response
 
