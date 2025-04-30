@@ -49,7 +49,7 @@ Note:
 WORKSIZE_LOCAL = 64
 WORKSIZE_MAX = 0  # 0 means default
 INVERSE_SIZE = 255
-INVERSE_MULTIPLE = 1024
+INVERSE_MULTIPLE = 16384
 
 """
     Should program output anything in std::out ?
