@@ -12,7 +12,7 @@ POW_NEW_PROBLEM_TOPIC0 = (
 )
 PROBLEM_SELECTOR = "0x88f116d0"
 BALANCE_OF_SELECTOR = "0x70a08231"
-GAS_LIMIT_SUBMIT = 2_000_000
+GAS_LIMIT_SUBMIT = 500_000
 
 """
     be creative, pick your own data, don't make it too long though,
